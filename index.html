@@ -11,7 +11,7 @@
 <style>
 html, body {
  margin:0;
- padding:0;
+ padding:4px;
  width:100%;
  height:100%;
  background:black;
@@ -23,19 +23,24 @@ html, body {
  justify-content:center;
 }
 
-/* 상태 */
-#now{color:#aaa;font-size:12px;}
-#status{color:#0a84ff;margin:4px;}
+/* 상단 */
+#now{color:#aaa;font-size:11px;}
+#status{color:#0a84ff;margin:2px;font-size:12px;}
+h2{margin:4px 0;font-size:18px;}
+h3{margin:6px 0 2px;font-size:14px;}
 
 /* 원형 */
 .circle{
- width:220px;
- height:220px;
+ width:190px;
+ height:190px;
  position:relative;
+ display:flex;
+ align-items:center;
+ justify-content:center;
 }
 
-svg{transform:rotate(-90deg);}
-circle{fill:none;stroke-width:10;}
+svg{position:absolute; transform:rotate(-90deg);}
+circle{fill:none;stroke-width:9;}
 .bg{stroke:#1c1c1e;}
 
 .progress{
@@ -47,41 +52,39 @@ circle{fill:none;stroke-width:10;}
 /* 시간 */
 #time{
  position:absolute;
- top:50%;
- width:100%;
- transform:translateY(-50%);
- font-size:36px;
+ font-size:32px;
+ font-weight:600;
 }
 
 /* 버튼 */
 .controls{
  display:flex;
- gap:10px;
- margin:10px 0;
+ gap:6px;
+ margin:6px 0;
 }
 
 button{
- padding:10px 14px;
+ padding:6px 10px;
  border:none;
- border-radius:12px;
+ border-radius:10px;
  background:#1c1c1e;
  color:white;
- font-size:14px;
+ font-size:13px;
 }
 
 button:active{
- transform:scale(0.9);
+ transform:scale(0.92);
 }
 
-/* 활성 버튼 */
 .active{
  background:#0a84ff;
 }
 
 input{
- padding:6px;
- border-radius:10px;
+ padding:5px;
+ border-radius:8px;
  border:none;
+ margin-top:4px;
 }
 </style>
 </head>
@@ -94,14 +97,13 @@ input{
 <h2>🍅 Pomodoro</h2>
 
 <div class="circle">
-<svg width="220" height="220">
-<circle class="bg" cx="110" cy="110" r="90"/>
-<circle id="progress" class="progress" cx="110" cy="110" r="90" stroke-dasharray="565"/>
+<svg width="190" height="190">
+<circle class="bg" cx="95" cy="95" r="80"/>
+<circle id="progress" class="progress" cx="95" cy="95" r="80" stroke-dasharray="502"/>
 </svg>
 <div id="time">25:00</div>
 </div>
 
-<!-- 🔥 토글 버튼 -->
 <div class="controls">
   <button id="toggleBtn" onclick="toggleTimer()">▶ 시작</button>
   <button onclick="reset()">🔄 초기화</button>
@@ -119,7 +121,7 @@ input{
 <h3>📊 공부시간</h3>
 <div id="stats"></div>
 
-<button onclick="resetStats()">🔄 초기화</button>
+<button onclick="resetStats()">🔄 공부시간 초기화</button>
 
 <script>
 let focusTime = 1500;
@@ -139,7 +141,7 @@ let current = localStorage.getItem("current");
 const progress = document.getElementById("progress");
 const toggleBtn = document.getElementById("toggleBtn");
 
-// 시간 표시
+// 현재 시간
 setInterval(()=>{
  document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
@@ -154,7 +156,7 @@ function notify(msg, cycleEnd=false){
  }
 }
 
-// 상태 표시
+// 상태
 function renderStatus(){
  document.getElementById("status").innerText =
   (mode==="focus"?"🔥 집중":"😴 휴식") +
@@ -195,7 +197,7 @@ function renderSubjects(){
  });
 }
 
-function selectSubject(s){ current=s; localStorage.setItem("current",s); }
+function selectSubject(s){ current=s; save(); }
 
 function addSubject(){
  let v=document.getElementById("newSubject").value.trim();
@@ -261,7 +263,7 @@ function update(){
 
  if(timeLeft<=0){ handleComplete(); return; }
 
- progress.style.strokeDashoffset=565*(1-timeLeft/duration);
+ progress.style.strokeDashoffset=502*(1-timeLeft/duration);
 
  if(mode==="focus" && current){
   stats[current]+=1;
