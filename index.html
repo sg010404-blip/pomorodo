@@ -3,66 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <title>Pomodoro</title>
-
 <style>
-body {
-  font-family:-apple-system;
-  background:black;
-  color:white;
-  text-align:center;
-}
-
-#status { color:#0a84ff; }
-#now { color:#aaa; }
-
-.circle { width:260px;height:260px;margin:30px auto;position:relative; }
-svg { transform:rotate(-90deg); }
-
-circle { fill:none; stroke-width:10; }
-.bg { stroke:#1c1c1e; }
-
-.progress {
-  stroke:#0a84ff;
-  stroke-linecap:round;
-  transition:stroke-dashoffset 1s linear;
-}
-
-#time {
-  position:absolute;
-  top:50%;
-  width:100%;
-  transform:translateY(-50%);
-  font-size:42px;
-}
-
-button {
-  background:#1c1c1e;
-  color:white;
-  border:none;
-  padding:10px;
-  border-radius:10px;
-  margin:5px;
-}
-button:active { transform:scale(0.9); }
-
-input { padding:8px;border-radius:10px;border:none; }
+body{font-family:-apple-system;background:black;color:white;text-align:center;}
+button{margin:5px;padding:10px;border-radius:10px;border:none;background:#1c1c1e;color:white;}
+button:active{transform:scale(0.9);}
+input{padding:8px;border-radius:10px;border:none;}
 </style>
 </head>
-
 <body>
 
-<div id="now"></div>
-<div id="status"></div>
+<h2>🍅 Pomodoro</h2>
 
-<h1>🍅 Pomodoro</h1>
-
-<div class="circle">
-<svg width="260" height="260">
-<circle class="bg" cx="130" cy="130" r="110"/>
-<circle id="progress" class="progress" cx="130" cy="130" r="110" stroke-dasharray="690"/>
-</svg>
 <div id="time">25:00</div>
-</div>
 
 <button onclick="start()">시작</button>
 <button onclick="pause()">정지</button>
@@ -77,190 +29,145 @@ input { padding:8px;border-radius:10px;border:none; }
 <h3>📊 공부시간</h3>
 <div id="stats"></div>
 
-<h3>📜 세션 기록</h3>
-<div id="log"></div>
-
-<h3>📅 오늘 리포트</h3>
-<div id="report"></div>
+<button onclick="resetAll()">🔥 전체 초기화</button>
 
 <script>
-let focusTime = 1500;
-let breakTime = 300;
+let focusTime=1500;
+let time=focusTime;
+let interval=null;
 
-let time = focusTime;
-let mode = "focus"; // focus / break
-let interval = null;
-let startTime = null;
+let subjects=JSON.parse(localStorage.getItem("subjects"))||[];
+let stats=JSON.parse(localStorage.getItem("stats"))||{};
+let current=localStorage.getItem("current");
 
-let subjects = JSON.parse(localStorage.getItem("subjects")) || [];
-let current = localStorage.getItem("current") || null;
-let stats = JSON.parse(localStorage.getItem("stats")) || {};
-let logs = JSON.parse(localStorage.getItem("logs")) || [];
-let sessions = parseInt(localStorage.getItem("sessions")) || 0;
+// ❗ 잘못된 current 제거
+if(!subjects.includes(current)) current=null;
 
-const progress = document.getElementById("progress");
-const select = document.getElementById("subject");
-
-// 현재시간
-setInterval(()=>{
-  document.getElementById("now").innerText=new Date().toLocaleTimeString();
-},1000);
+const select=document.getElementById("subject");
 
 // 저장
 function save(){
-  localStorage.setItem("subjects",JSON.stringify(subjects));
-  localStorage.setItem("current",current);
-  localStorage.setItem("stats",JSON.stringify(stats));
-  localStorage.setItem("logs",JSON.stringify(logs));
-  localStorage.setItem("sessions",sessions);
+ localStorage.setItem("subjects",JSON.stringify(subjects));
+ localStorage.setItem("stats",JSON.stringify(stats));
+ localStorage.setItem("current",current);
 }
 
-// 상태 표시
-function renderStatus(){
-  document.getElementById("status").innerText =
-    mode==="focus" ? "🔥 집중시간" : "😴 휴식시간";
-}
-
-// 과목
+// 과목 렌더
 function renderSubjects(){
-  select.innerHTML="";
-  subjects.forEach(s=>{
-    let o=document.createElement("option");
-    o.value=s; o.text=s;
-    select.appendChild(o);
-  });
-  if(current) select.value=current;
+ select.innerHTML="";
+ subjects.forEach(s=>{
+  let o=document.createElement("option");
+  o.value=s;
+  o.text=s;
+  select.appendChild(o);
+ });
+ if(current) select.value=current;
 }
 
+// 과목 추가 (🔥 핵심 수정)
+function addSubject(){
+ let v=document.getElementById("newSubject").value.trim();
+ if(!v) return;
+
+ if(!subjects.includes(v)){
+  subjects.push(v);
+ }
+
+ // 👉 stats도 같이 생성
+ if(!stats[v]){
+  stats[v]=0;
+ }
+
+ current=v;
+ save();
+
+ renderSubjects();
+ renderStats();
+}
+
+// 과목 변경
 select.onchange=()=>{
-  if(interval){
-    alert("타이머 멈추고 변경해!");
-    select.value=current;
-    return;
-  }
-  current=select.value;
-  save();
+ if(interval){
+  alert("타이머 멈추고 변경!");
+  select.value=current;
+  return;
+ }
+ current=select.value;
+ save();
 };
 
-function addSubject(){
-  let v=document.getElementById("newSubject").value.trim();
-  if(!v) return;
-  subjects.push(v);
-  current=v;
-  save();
-  renderSubjects();
-}
-
-// 통계
+// 통계 표시
 function renderStats(){
-  let div=document.getElementById("stats");
-  div.innerHTML="";
-  for(let s in stats){
-    div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
-  }
-}
+ let div=document.getElementById("stats");
+ div.innerHTML="";
 
-// 로그
-function renderLogs(){
-  let div=document.getElementById("log");
-  div.innerHTML="";
-  logs.slice().reverse().forEach(l=>{
-    div.innerHTML+=l+"<br>";
-  });
-}
-
-// 리포트
-function renderReport(){
-  let total=0;
-  for(let s in stats) total+=stats[s];
-
-  document.getElementById("report").innerHTML =
-    `총 공부시간: ${Math.floor(total/60)}분<br>
-     포모도로: ${sessions}회`;
+ for(let s in stats){
+  div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
+ }
 }
 
 // 타이머
 function update(){
-  if(startTime){
-    let elapsed=Math.floor((Date.now()-startTime)/1000);
-    time=(mode==="focus"?focusTime:breakTime)-elapsed;
+ time--;
+
+ if(time<=0){
+  clearInterval(interval);
+  interval=null;
+
+  if(current){
+    stats[current]=(stats[current]||0)+focusTime;
   }
 
-  if(time<=0){
-    clearInterval(interval);
-    interval=null;
+  save();
+  renderStats();
+  alert("🍅 완료!");
+  return;
+ }
 
-    if(mode==="focus"){
-      stats[current]=(stats[current]||0)+focusTime;
-      logs.push(current+" +25분");
-      sessions++;
-
-      mode="break";
-      time=breakTime;
-      alert("🍅 끝! 휴식 시작");
-
-    }else{
-      mode="focus";
-      time=focusTime;
-      alert("💪 다시 집중!");
-    }
-
-    save();
-    renderStats();
-    renderLogs();
-    renderReport();
-    renderStatus();
-
-    start();
-    return;
-  }
-
-  let m=Math.floor(time/60);
-  let s=time%60;
-
-  document.getElementById("time").innerText =
-    String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
-
-  let total=(mode==="focus"?focusTime:breakTime);
-  progress.style.strokeDashoffset=690*(1-time/total);
+ let m=Math.floor(time/60);
+ let s=time%60;
+ document.getElementById("time").innerText=
+  String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 }
 
 // 시작
 function start(){
-  if(interval) return;
-
-  if(mode==="focus" && !current){
-    alert("과목 먼저 추가!");
-    return;
-  }
-
-  startTime=Date.now()-((mode==="focus"?focusTime:breakTime)-time)*1000;
-  interval=setInterval(update,1000);
+ if(!current){
+  alert("과목 선택!");
+  return;
+ }
+ if(interval) return;
+ interval=setInterval(update,1000);
 }
 
 // 정지
 function pause(){
-  clearInterval(interval);
-  interval=null;
+ clearInterval(interval);
+ interval=null;
 }
 
 // 리셋
 function reset(){
-  clearInterval(interval);
-  interval=null;
-  mode="focus";
-  time=focusTime;
-  update();
-  renderStatus();
+ clearInterval(interval);
+ interval=null;
+ time=focusTime;
+}
+
+// 🔥 전체 초기화 (핵심 기능)
+function resetAll(){
+ if(confirm("진짜 전부 삭제할까?")){
+  localStorage.clear();
+  subjects=[];
+  stats={};
+  current=null;
+  renderSubjects();
+  renderStats();
+ }
 }
 
 // 초기 실행
 renderSubjects();
 renderStats();
-renderLogs();
-renderReport();
-renderStatus();
-update();
 </script>
 
 </body>
