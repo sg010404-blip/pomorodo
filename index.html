@@ -6,92 +6,60 @@
 
 <style>
 body {
-  font-family: -apple-system;
-  background: black;
-  color: white;
-  text-align: center;
+  font-family:-apple-system;
+  background:black;
+  color:white;
+  text-align:center;
 }
 
-#now {
-  margin-top: 20px;
-  color: #aaa;
-}
+#status { color:#0a84ff; }
+#now { color:#aaa; }
 
-#session {
-  margin-top: 10px;
-  font-size: 16px;
-  color: #0a84ff;
-}
+.circle { width:260px;height:260px;margin:30px auto;position:relative; }
+svg { transform:rotate(-90deg); }
 
-.circle {
-  width: 260px;
-  height: 260px;
-  margin: 30px auto;
-  position: relative;
-}
-
-svg { transform: rotate(-90deg); }
-
-circle {
-  fill: none;
-  stroke-width: 10;
-}
-
-.bg { stroke: #1c1c1e; }
+circle { fill:none; stroke-width:10; }
+.bg { stroke:#1c1c1e; }
 
 .progress {
-  stroke: #0a84ff;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear;
+  stroke:#0a84ff;
+  stroke-linecap:round;
+  transition:stroke-dashoffset 1s linear;
 }
 
 #time {
-  position: absolute;
-  top: 50%;
-  width: 100%;
-  transform: translateY(-50%);
-  font-size: 42px;
+  position:absolute;
+  top:50%;
+  width:100%;
+  transform:translateY(-50%);
+  font-size:42px;
 }
 
 button {
-  background: #1c1c1e;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 10px;
-  margin: 5px;
-  transition: 0.1s;
+  background:#1c1c1e;
+  color:white;
+  border:none;
+  padding:10px;
+  border-radius:10px;
+  margin:5px;
 }
+button:active { transform:scale(0.9); }
 
-button:active {
-  transform: scale(0.9);
-  background: #333;
-}
-
-input {
-  padding: 8px;
-  border-radius: 10px;
-  border: none;
-}
-
-.subject-item {
-  margin: 5px;
-}
+input { padding:8px;border-radius:10px;border:none; }
 </style>
 </head>
 
 <body>
 
 <div id="now"></div>
-<div id="session"></div>
+<div id="status"></div>
 
 <h1>🍅 Pomodoro</h1>
 
 <div class="circle">
 <svg width="260" height="260">
 <circle class="bg" cx="130" cy="130" r="110"/>
-<circle id="progress" class="progress" cx="130" cy="130" r="110"
-stroke-dasharray="690" stroke-dashoffset="0"/>
+<circle id="progress" class="progress" cx="130" cy="130" r="110" stroke-dasharray="690"/>
 </svg>
 <div id="time">25:00</div>
 </div>
@@ -103,172 +71,171 @@ stroke-dasharray="690" stroke-dashoffset="0"/>
 <h3>과목</h3>
 <select id="subject"></select>
 
-<br><br>
-
 <input id="newSubject" placeholder="과목 입력">
 <button onclick="addSubject()">추가</button>
 
-<div id="list"></div>
-
 <h3>📊 공부시간</h3>
-<button onclick="resetStats()">전체 초기화</button>
 <div id="stats"></div>
 
+<h3>📜 세션 기록</h3>
+<div id="log"></div>
+
+<h3>📅 오늘 리포트</h3>
+<div id="report"></div>
+
 <script>
-let totalTime = 1500;
-let time = totalTime;
+let focusTime = 1500;
+let breakTime = 300;
+
+let time = focusTime;
+let mode = "focus"; // focus / break
 let interval = null;
 let startTime = null;
 
-// 포모도로 횟수
-let session = parseInt(localStorage.getItem("session")) || 1;
-
-// 과목
-let subjects = JSON.parse(localStorage.getItem("subjects")) || ["세법","회계"];
-let current = localStorage.getItem("current") || subjects[0];
-
-// 공부시간
+let subjects = JSON.parse(localStorage.getItem("subjects")) || [];
+let current = localStorage.getItem("current") || null;
 let stats = JSON.parse(localStorage.getItem("stats")) || {};
+let logs = JSON.parse(localStorage.getItem("logs")) || [];
+let sessions = parseInt(localStorage.getItem("sessions")) || 0;
 
 const progress = document.getElementById("progress");
 const select = document.getElementById("subject");
-const list = document.getElementById("list");
-const statsDiv = document.getElementById("stats");
 
-// 현재 시간
-function updateNow(){
-  document.getElementById("now").innerText =
-    new Date().toLocaleTimeString();
-}
-setInterval(updateNow,1000);
-updateNow();
-
-// 포모도로 표시
-function updateSession(){
-  document.getElementById("session").innerText =
-    "🍅 " + session + "번째 포모도로";
-}
-updateSession();
+// 현재시간
+setInterval(()=>{
+  document.getElementById("now").innerText=new Date().toLocaleTimeString();
+},1000);
 
 // 저장
 function save(){
-  localStorage.setItem("subjects", JSON.stringify(subjects));
-  localStorage.setItem("current", current);
-  localStorage.setItem("stats", JSON.stringify(stats));
-  localStorage.setItem("session", session);
+  localStorage.setItem("subjects",JSON.stringify(subjects));
+  localStorage.setItem("current",current);
+  localStorage.setItem("stats",JSON.stringify(stats));
+  localStorage.setItem("logs",JSON.stringify(logs));
+  localStorage.setItem("sessions",sessions);
 }
 
-// 과목 렌더링
+// 상태 표시
+function renderStatus(){
+  document.getElementById("status").innerText =
+    mode==="focus" ? "🔥 집중시간" : "😴 휴식시간";
+}
+
+// 과목
 function renderSubjects(){
   select.innerHTML="";
-  list.innerHTML="";
-
-  subjects.forEach((s,i)=>{
-    const opt=document.createElement("option");
-    opt.value=s;
-    opt.text=s;
-    select.appendChild(opt);
-
-    const div=document.createElement("div");
-    div.className="subject-item";
-
-    div.innerHTML=`
-      ${s}
-      <button onclick="editSubject(${i})">✏️</button>
-      <button onclick="deleteSubject(${i})">❌</button>
-    `;
-    list.appendChild(div);
+  subjects.forEach(s=>{
+    let o=document.createElement("option");
+    o.value=s; o.text=s;
+    select.appendChild(o);
   });
-
-  select.value=current;
-}
-
-// 공부시간 렌더링
-function renderStats(){
-  statsDiv.innerHTML="";
-  for(let s in stats){
-    const min=Math.floor(stats[s]/60);
-    statsDiv.innerHTML+=`
-      <div>
-        ${s}: ${min}분
-        <button onclick="resetOne('${s}')">❌</button>
-      </div>
-    `;
-  }
-}
-
-// 과목 기능
-function addSubject(){
-  const val=document.getElementById("newSubject").value.trim();
-  if(!val) return;
-  subjects.push(val);
-  save();
-  renderSubjects();
-}
-
-function editSubject(i){
-  const v=prompt("수정",subjects[i]);
-  if(!v) return;
-  subjects[i]=v;
-  save();
-  renderSubjects();
-}
-
-function deleteSubject(i){
-  subjects.splice(i,1);
-  save();
-  renderSubjects();
+  if(current) select.value=current;
 }
 
 select.onchange=()=>{
+  if(interval){
+    alert("타이머 멈추고 변경해!");
+    select.value=current;
+    return;
+  }
   current=select.value;
   save();
 };
 
-// 타이머 업데이트
+function addSubject(){
+  let v=document.getElementById("newSubject").value.trim();
+  if(!v) return;
+  subjects.push(v);
+  current=v;
+  save();
+  renderSubjects();
+}
+
+// 통계
+function renderStats(){
+  let div=document.getElementById("stats");
+  div.innerHTML="";
+  for(let s in stats){
+    div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
+  }
+}
+
+// 로그
+function renderLogs(){
+  let div=document.getElementById("log");
+  div.innerHTML="";
+  logs.slice().reverse().forEach(l=>{
+    div.innerHTML+=l+"<br>";
+  });
+}
+
+// 리포트
+function renderReport(){
+  let total=0;
+  for(let s in stats) total+=stats[s];
+
+  document.getElementById("report").innerHTML =
+    `총 공부시간: ${Math.floor(total/60)}분<br>
+     포모도로: ${sessions}회`;
+}
+
+// 타이머
 function update(){
   if(startTime){
-    const elapsed=Math.floor((Date.now()-startTime)/1000);
-    time=totalTime-elapsed;
+    let elapsed=Math.floor((Date.now()-startTime)/1000);
+    time=(mode==="focus"?focusTime:breakTime)-elapsed;
   }
 
   if(time<=0){
-    time=0;
     clearInterval(interval);
     interval=null;
 
-    session++; // 포모도로 증가
-    save();
-    updateSession();
+    if(mode==="focus"){
+      stats[current]=(stats[current]||0)+focusTime;
+      logs.push(current+" +25분");
+      sessions++;
 
-    alert("🍅 한 세트 끝!");
+      mode="break";
+      time=breakTime;
+      alert("🍅 끝! 휴식 시작");
+
+    }else{
+      mode="focus";
+      time=focusTime;
+      alert("💪 다시 집중!");
+    }
+
+    save();
+    renderStats();
+    renderLogs();
+    renderReport();
+    renderStatus();
+
+    start();
+    return;
   }
 
-  const m=Math.floor(time/60);
-  const s=time%60;
+  let m=Math.floor(time/60);
+  let s=time%60;
 
   document.getElementById("time").innerText =
     String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 
-  const percent=time/totalTime;
-  progress.style.strokeDashoffset=690*(1-percent);
+  let total=(mode==="focus"?focusTime:breakTime);
+  progress.style.strokeDashoffset=690*(1-time/total);
 }
 
 // 시작
 function start(){
   if(interval) return;
 
-  startTime=Date.now()-(totalTime-time)*1000;
+  if(mode==="focus" && !current){
+    alert("과목 먼저 추가!");
+    return;
+  }
 
-  interval=setInterval(()=>{
-    update();
-
-    // 공부시간 누적
-    stats[current]=(stats[current]||0)+1;
-    save();
-    renderStats();
-
-  },1000);
+  startTime=Date.now()-((mode==="focus"?focusTime:breakTime)-time)*1000;
+  interval=setInterval(update,1000);
 }
 
 // 정지
@@ -281,29 +248,19 @@ function pause(){
 function reset(){
   clearInterval(interval);
   interval=null;
-  time=totalTime;
-  startTime=null;
+  mode="focus";
+  time=focusTime;
   update();
-}
-
-// 공부시간 초기화
-function resetStats(){
-  if(!confirm("전체 초기화?")) return;
-  stats={};
-  save();
-  renderStats();
-}
-
-function resetOne(s){
-  stats[s]=0;
-  save();
-  renderStats();
+  renderStatus();
 }
 
 // 초기 실행
-update();
 renderSubjects();
 renderStats();
+renderLogs();
+renderReport();
+renderStatus();
+update();
 </script>
 
 </body>
