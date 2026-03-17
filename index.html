@@ -100,19 +100,42 @@ let subjects = JSON.parse(localStorage.getItem("subjects")) || [];
 let stats = JSON.parse(localStorage.getItem("stats")) || {};
 let current = localStorage.getItem("current");
 
+const progress = document.getElementById("progress");
+
 // 현재시간
 setInterval(()=>{
  document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
 
-// 알림
-function notify(msg){}
+// 🔔 알림 권한
+function requestNotification(){
+ if(Notification.permission !== "granted"){
+  Notification.requestPermission();
+ }
+}
 
-// 상태 표시
+// 🔔 진동
+function vibrate(){
+ if(navigator.vibrate){
+  navigator.vibrate([300,100,300]);
+ }
+}
+
+// 🔔 알림 (무음)
+function notify(msg, cycleEnd=false){
+ if(Notification.permission === "granted"){
+  new Notification(msg,{ silent:true });
+ }
+ if(cycleEnd){
+  vibrate();
+ }
+}
+
+// 상태
 function renderStatus(){
  document.getElementById("status").innerText =
   (mode==="focus"?"🔥 집중":"😴 휴식") +
-  ` | 🍅 ${sessions}회`;
+  ` | 🍅 ${sessions}회 | 🔁 ${Math.floor(sessions/4)}사이클`;
 }
 
 // 과목
@@ -139,12 +162,14 @@ function addSubject(){
  renderSubjects();
 }
 
-// 공부시간 표시
+// 공부시간
 function renderStats(){
  let div=document.getElementById("stats");
  div.innerHTML="";
  for(let s in stats){
-  div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
+  if(stats[s]>0){
+    div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
+  }
  }
 }
 
@@ -154,12 +179,17 @@ function update(){
  let elapsed = Math.floor((now - startTimestamp)/1000);
  let timeLeft = remainingTime - elapsed;
 
+ let duration = (mode==="focus"?focusTime:breakTime);
+
  if(timeLeft <= 0){
   handleComplete();
   return;
  }
 
- // 공부시간 정확 누적
+ // 게이지
+ progress.style.strokeDashoffset = 690*(1-timeLeft/duration);
+
+ // 공부시간
  if(mode==="focus" && current){
   stats[current]+=1;
  }
@@ -173,20 +203,26 @@ function update(){
  renderStats();
 }
 
-// 완료 처리
+// 완료
 function handleComplete(){
  clearInterval(interval);
 
  if(mode==="focus"){
   sessions++;
+
+  if(sessions % 4 === 0){
+    notify("🎉 1사이클 완료!", true);
+    renderStatus();
+    return;
+  }
+
   mode="break";
   remainingTime=breakTime;
+  notify("☕ 휴식 시작");
  }else{
-  if(sessions%4===0){
-   return;
-  }
   mode="focus";
   remainingTime=focusTime;
+  notify("💪 집중 시작");
  }
 
  start();
@@ -194,11 +230,18 @@ function handleComplete(){
 
 // 시작
 function start(){
+ requestNotification();
+
+ if(mode==="focus" && !current){
+  alert("과목 선택하세요");
+  return;
+ }
+
  if(interval) return;
 
  startTimestamp = Date.now();
-
  interval=setInterval(update,1000);
+
  renderStatus();
 }
 
@@ -221,8 +264,12 @@ function reset(){
 
  mode="focus";
  remainingTime=focusTime;
+ sessions=0;
 
+ progress.style.strokeDashoffset=0;
  document.getElementById("time").innerText="25:00";
+
+ renderStatus();
 }
 
 // 다음
@@ -242,7 +289,7 @@ function nextPhase(){
  start();
 }
 
-// 초기 실행
+// 실행
 renderSubjects();
 renderStats();
 renderStatus();
