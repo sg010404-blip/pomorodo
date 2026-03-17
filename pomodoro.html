@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Pomodoro</title>
+
+<style>
+body {
+ font-family: -apple-system;
+ background: black;
+ color: white;
+ text-align: center;
+}
+
+#now {
+ margin-top: 20px;
+ color: #aaa;
+}
+
+#session {
+ margin-top: 10px;
+ font-size: 16px;
+ color: #0a84ff;
+}
+
+.circle {
+ width: 260px;
+ height: 260px;
+ margin: 30px auto;
+ position: relative;
+}
+
+svg { transform: rotate(-90deg); }
+
+circle {
+ fill: none;
+ stroke-width: 10;
+}
+
+.bg { stroke: #1c1c1e; }
+
+.progress {
+ stroke: #0a84ff;
+ stroke-linecap: round;
+ transition: stroke-dashoffset 1s linear;
+}
+
+#time {
+ position: absolute;
+ top: 50%;
+ width: 100%;
+ transform: translateY(-50%);
+ font-size: 42px;
+}
+
+button {
+ background: #1c1c1e;
+ color: white;
+ border: none;
+ padding: 10px;
+ border-radius: 10px;
+ margin: 5px;
+ transition: 0.1s;
+}
+
+button:active {
+ transform: scale(0.9);
+ background: #333;
+}
+
+input {
+ padding: 8px;
+ border-radius: 10px;
+ border: none;
+}
+
+.subject-item {
+ margin: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="now"></div>
+<div id="session"></div>
+
+<h1>🍅 Pomodoro</h1>
+
+<div class="circle">
+<svg width="260" height="260">
+<circle class="bg" cx="130" cy="130" r="110"/>
+<circle id="progress" class="progress" cx="130" cy="130" r="110"
+stroke-dasharray="690"/>
+</svg>
+<div id="time">25:00</div>
+</div>
+
+<button onclick="start()">시작</button>
+<button onclick="pause()">정지</button>
+<button onclick="reset()">리셋</button>
+
+<h3>과목</h3>
+<select id="subject"></select>
+
+<br><br>
+
+<input id="newSubject" placeholder="과목 입력">
+<button onclick="addSubject()">추가</button>
+
+<div id="list"></div>
+
+<h3>📊 공부시간</h3>
+<button onclick="resetStats()">전체 초기화</button>
+<div id="stats"></div>
+
+<script>
+let totalTime = 1500;
+let time = totalTime;
+let interval = null;
+let startTime = null;
+
+// 포모도로 횟수
+let session = parseInt(localStorage.getItem("session")) || 1;
+
+// 과목
+let subjects = JSON.parse(localStorage.getItem("subjects")) || ["세법","회계"];
+let current = localStorage.getItem("current") || subjects[0];
+
+// 공부시간
+let stats = JSON.parse(localStorage.getItem("stats")) || {};
+
+const progress = document.getElementById("progress");
+const select = document.getElementById("subject");
+const list = document.getElementById("list");
+const statsDiv = document.getElementById("stats");
+
+// 현재 시간
+function updateNow(){
+ document.getElementById("now").innerText =
+   new Date().toLocaleTimeString();
+}
+setInterval(updateNow,1000);
+updateNow();
+
+// 포모도로 표시
+function updateSession(){
+ document.getElementById("session").innerText =
+   "🍅 " + session + "번째 포모도로";
+}
+updateSession();
+
+// 저장
+function save(){
+ localStorage.setItem("subjects", JSON.stringify(subjects));
+ localStorage.setItem("current", current);
+ localStorage.setItem("stats", JSON.stringify(stats));
+ localStorage.setItem("session", session);
+}
+
+// 과목 렌더링
+function renderSubjects(){
+ select.innerHTML="";
+ list.innerHTML="";
+
+ subjects.forEach((s,i)=>{
+   const opt=document.createElement("option");
+   opt.value=s;
+   opt.text=s;
+   select.appendChild(opt);
+
+   const div=document.createElement("div");
+   div.className="subject-item";
+
+   div.innerHTML=`
+     ${s}
+     <button onclick="editSubject(${i})">✏️</button>
+     <button onclick="deleteSubject(${i})">❌</button>
+   `;
+   list.appendChild(div);
+ });
+
+ select.value=current;
+}
+
+// 공부시간 렌더링
+function renderStats(){
+ statsDiv.innerHTML="";
+ for(let s in stats){
+   const min=Math.floor(stats[s]/60);
+   statsDiv.innerHTML+=`
+     <div>
+       ${s}: ${min}분
+       <button onclick="resetOne('${s}')">❌</button>
+     </div>
+   `;
+ }
+}
+
+// 과목 기능
+function addSubject(){
+ const val=document.getElementById("newSubject").value.trim();
+ if(!val) return;
+ subjects.push(val);
+ save();
+ renderSubjects();
+}
+
+function editSubject(i){
+ const v=prompt("수정",subjects[i]);
+ if(!v) return;
+ subjects[i]=v;
+ save();
+ renderSubjects();
+}
+
+function deleteSubject(i){
+ subjects.splice(i,1);
+ save();
+ renderSubjects();
+}
+
+select.onchange=()=>{
+ current=select.value;
+ save();
+};
+
+// 타이머 업데이트
+function update(){
+ if(startTime){
+   const elapsed=Math.floor((Date.now()-startTime)/1000);
+   time=totalTime-elapsed;
+ }
+
+ if(time<=0){
+   time=0;
+   clearInterval(interval);
+   interval=null;
+
+   session++; // 포모도로 증가
+   save();
+   updateSession();
+
+   alert("끝!");
+ }
+
+ const m=Math.floor(time/60);
+ const s=time%60;
+
+ document.getElementById("time").innerText =
+   String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+
+ const percent=time/totalTime;
+ progress.style.strokeDashoffset=690*(1-percent);
+}
+
+// 시작
+function start(){
+ if(interval) return;
+
+ startTime=Date.now()-(totalTime-time)*1000;
+
+ interval=setInterval(()=>{
+   update();
+
+   // 공부시간 누적
+   stats[current]=(stats[current]||0)+1;
+   save();
+   renderStats();
+
+ },1000);
+}
+
+// 정지
+function pause(){
+ clearInterval(interval);
+ interval=null;
+}
+
+// 리셋
+function reset(){
+ clearInterval(interval);
+ interval=null;
+ time=totalTime;
+ startTime=null;
+ update();
+}
+
+// 공부시간 초기화
+function resetStats(){
+ if(!confirm("초기화?")) return;
+ stats={};
+ save();
+ renderStats();
+}
+
+function resetOne(s){
+ stats[s]=0;
+ save();
+ renderStats();
+}
+
+// 초기 실행
+update();
+renderSubjects();
+renderStats();
+</script>
+
+</body>
+</html>
