@@ -41,22 +41,18 @@ circle{fill:none;stroke-width:10;}
 
 button{
  margin:5px;
- padding:8px 12px;
+ padding:10px 14px;
  border:none;
- border-radius:10px;
+ border-radius:12px;
  background:#1c1c1e;
  color:white;
+ font-size:16px;
 }
 
-button:active{transform:scale(0.9);}
-
-input{
- padding:8px;
- border-radius:10px;
- border:none;
+button:active{
+ transform:scale(0.9);
+ opacity:0.7;
 }
-
-.subject-item{margin:5px;}
 </style>
 </head>
 
@@ -75,9 +71,10 @@ input{
 <div id="time">25:00</div>
 </div>
 
-<button onclick="start()">시작</button>
-<button onclick="pause()">정지</button>
-<button onclick="reset()">리셋</button>
+<button onclick="start()">▶ 시작</button>
+<button onclick="pause()">⏸ 일시정지</button>
+<button onclick="reset()">🔄 초기화</button>
+<button onclick="nextPhase()">⏭ 다음</button>
 
 <h3>과목</h3>
 <div id="subjectList"></div>
@@ -85,75 +82,37 @@ input{
 <input id="newSubject" placeholder="과목 입력">
 <button onclick="addSubject()">추가</button>
 
-<button onclick="resetSubjects()">🗑 과목 전체 삭제</button>
-
 <h3>📊 공부시간</h3>
 <div id="stats"></div>
-
-<button onclick="resetStats()">🔄 공부시간 초기화</button>
 
 <script>
 let focusTime = 1500;
 let breakTime = 300;
 
 let mode = "focus";
-let endTime = null;
+let remainingTime = focusTime;
 let interval = null;
-let lastUpdate = null;
+let startTimestamp = null;
+
 let sessions = 0;
 
 let subjects = JSON.parse(localStorage.getItem("subjects")) || [];
 let stats = JSON.parse(localStorage.getItem("stats")) || {};
 let current = localStorage.getItem("current");
 
-if(!subjects.includes(current)) current=null;
-
-const progress = document.getElementById("progress");
-
-// 현재 시간
+// 현재시간
 setInterval(()=>{
- document.getElementById("now").innerText = new Date().toLocaleTimeString();
+ document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
 
-// 🔔 알림 권한
-function requestNotification(){
- if(Notification.permission !== "granted"){
-  Notification.requestPermission();
- }
-}
+// 알림
+function notify(msg){}
 
-// 🔔 진동 (아이폰은 제한적)
-function vibrate(){
- if(navigator.vibrate){
-  navigator.vibrate([300,100,300]);
- }
-}
-
-// 🔔 알림 (무음)
-function notify(msg, isCycleEnd=false){
- if(Notification.permission === "granted"){
-  new Notification(msg,{ silent:true });
- }
-
- if(isCycleEnd){
-  vibrate();
- }
-}
-
-// 저장
-function save(){
- localStorage.setItem("subjects",JSON.stringify(subjects));
- localStorage.setItem("stats",JSON.stringify(stats));
- localStorage.setItem("current",current);
- localStorage.setItem("sessions",sessions);
- localStorage.setItem("endTime",endTime);
-}
-
-// 상태
+// 상태 표시
 function renderStatus(){
  document.getElementById("status").innerText =
   (mode==="focus"?"🔥 집중":"😴 휴식") +
-  ` | 🍅 ${sessions}회 (사이클 ${Math.floor(sessions/4)+1})`;
+  ` | 🍅 ${sessions}회`;
 }
 
 // 과목
@@ -161,202 +120,132 @@ function renderSubjects(){
  let div=document.getElementById("subjectList");
  div.innerHTML="";
  subjects.forEach(s=>{
-  let el=document.createElement("div");
-  el.className="subject-item";
-  el.innerHTML=`
-    ${s}
-    <button onclick="selectSubject('${s}')">선택</button>
-    <button onclick="editSubject('${s}')">수정</button>
-    <button onclick="deleteSubject('${s}')">삭제</button>
-  `;
-  div.appendChild(el);
+  div.innerHTML+=`${s} <button onclick="selectSubject('${s}')">선택</button><br>`;
  });
 }
 
 function selectSubject(s){
- if(interval){ alert("타이머 멈추고 변경하세요"); return; }
- current=s; save();
+ current=s;
+ localStorage.setItem("current",s);
 }
 
 function addSubject(){
- let v=document.getElementById("newSubject").value.trim();
+ let v=document.getElementById("newSubject").value;
  if(!v) return;
-
- if(!subjects.includes(v)){
-  subjects.push(v);
-  stats[v]=0;
- }
-
- current=v;
- save();
+ subjects.push(v);
+ stats[v]=0;
+ localStorage.setItem("subjects",JSON.stringify(subjects));
+ localStorage.setItem("stats",JSON.stringify(stats));
  renderSubjects();
- renderStats();
 }
 
-function deleteSubject(s){
- subjects=subjects.filter(x=>x!==s);
- delete stats[s];
- if(current===s) current=null;
- save();
- renderSubjects();
- renderStats();
-}
-
-function editSubject(s){
- let n=prompt("수정",s);
- if(!n) return;
-
- subjects=subjects.map(x=>x===s?n:x);
- stats[n]=stats[s];
- delete stats[s];
-
- if(current===s) current=n;
-
- save();
- renderSubjects();
- renderStats();
-}
-
-function resetSubjects(){
- subjects=[]; stats={}; current=null;
- save();
- renderSubjects();
- renderStats();
-}
-
-function resetStats(){
- stats={};
- save();
- renderStats();
-}
-
+// 공부시간 표시
 function renderStats(){
  let div=document.getElementById("stats");
  div.innerHTML="";
-
  for(let s in stats){
-  if(stats[s]>0){
-    div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
-  }
+  div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
  }
 }
 
 // 타이머
 function update(){
  let now = Date.now();
- let duration = (mode==="focus"?focusTime:breakTime);
- let remaining = Math.max(0, Math.floor((endTime - now)/1000));
+ let elapsed = Math.floor((now - startTimestamp)/1000);
+ let timeLeft = remainingTime - elapsed;
 
- if(mode==="focus" && lastUpdate && current){
-  let diff = Math.floor((now - lastUpdate)/1000);
-  if(diff>0){
-    stats[current]=(stats[current]||0)+diff;
-  }
+ if(timeLeft <= 0){
+  handleComplete();
+  return;
  }
 
- lastUpdate = now;
+ // 공부시간 정확 누적
+ if(mode==="focus" && current){
+  stats[current]+=1;
+ }
 
- let m=Math.floor(remaining/60);
- let s=remaining%60;
+ let m=Math.floor(timeLeft/60);
+ let s=timeLeft%60;
 
  document.getElementById("time").innerText =
   String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
 
- progress.style.strokeDashoffset = 690*(1-remaining/duration);
-
  renderStats();
+}
 
- if(remaining<=0){
-  clearInterval(interval);
-  interval=null;
-  lastUpdate=null;
+// 완료 처리
+function handleComplete(){
+ clearInterval(interval);
 
-  if(mode==="focus"){
-    sessions++;
-    mode="break";
-    notify("🍅 집중 끝! 휴식 시작");
-  }else{
-
-    if(sessions % 4 === 0){
-      notify("🎉 1사이클 완료! 쉬고 다시 시작하세요", true);
-      mode="focus";
-      renderStatus();
-      save();
-      return;
-    }
-
-    mode="focus";
-    notify("💪 다시 집중!");
+ if(mode==="focus"){
+  sessions++;
+  mode="break";
+  remainingTime=breakTime;
+ }else{
+  if(sessions%4===0){
+   return;
   }
-
-  save();
-  renderStatus();
-  start();
+  mode="focus";
+  remainingTime=focusTime;
  }
+
+ start();
 }
 
 // 시작
 function start(){
- requestNotification();
-
- if(mode==="focus" && !current){
-  alert("과목 선택하세요");
-  return;
- }
-
  if(interval) return;
 
- let duration = (mode==="focus"?focusTime:breakTime);
- endTime = Date.now() + duration*1000;
-
- lastUpdate = Date.now();
+ startTimestamp = Date.now();
 
  interval=setInterval(update,1000);
  renderStatus();
 }
 
-// 정지
+// 일시정지
 function pause(){
+ if(!interval) return;
+
  clearInterval(interval);
+
+ let elapsed = Math.floor((Date.now()-startTimestamp)/1000);
+ remainingTime -= elapsed;
+
  interval=null;
- lastUpdate=null;
- save();
 }
 
-// 리셋
+// 초기화
 function reset(){
  clearInterval(interval);
  interval=null;
- lastUpdate=null;
 
  mode="focus";
+ remainingTime=focusTime;
 
  document.getElementById("time").innerText="25:00";
- progress.style.strokeDashoffset=0;
-
- renderStatus();
 }
 
-// 🔥 복구 (백그라운드 대응)
-window.onload = function(){
- let savedEnd = localStorage.getItem("endTime");
+// 다음
+function nextPhase(){
+ clearInterval(interval);
 
- if(savedEnd){
-  let remaining = Math.floor((savedEnd - Date.now())/1000);
-
-  if(remaining > 0){
-    endTime = savedEnd;
-    lastUpdate = Date.now();
-    interval = setInterval(update,1000);
-  }
+ if(mode==="focus"){
+  sessions++;
+  mode="break";
+  remainingTime=breakTime;
+ }else{
+  mode="focus";
+  remainingTime=focusTime;
  }
 
- sessions = parseInt(localStorage.getItem("sessions")) || 0;
-
- renderSubjects();
- renderStats();
- renderStatus();
+ interval=null;
+ start();
 }
+
+// 초기 실행
+renderSubjects();
+renderStats();
+renderStatus();
 </script>
 
 </body>
