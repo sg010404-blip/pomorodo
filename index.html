@@ -3,10 +3,8 @@
 <head>
 <meta charset="UTF-8">
 
-<!-- 풀스크린 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <title>Pomodoro</title>
 
@@ -16,27 +14,18 @@ html, body {
  padding:0;
  width:100%;
  height:100%;
- overflow:hidden;
-}
-
-body{
- font-family:-apple-system;
  background:black;
  color:white;
+ font-family:-apple-system;
  display:flex;
  flex-direction:column;
  align-items:center;
  justify-content:center;
- text-align:center;
 }
 
-/* 상단 */
-#now{color:#aaa;margin-top:4px;}
+/* 상태 */
+#now{color:#aaa;font-size:12px;}
 #status{color:#0a84ff;margin:4px;}
-
-/* 제목 */
-h2{margin:5px 0;}
-h3{margin:6px 0 4px;}
 
 /* 원형 */
 .circle{
@@ -64,16 +53,15 @@ circle{fill:none;stroke-width:10;}
  font-size:36px;
 }
 
-/* 버튼 한 줄 */
+/* 버튼 */
 .controls{
  display:flex;
- justify-content:center;
- gap:8px;
- margin:8px 0;
+ gap:10px;
+ margin:10px 0;
 }
 
 button{
- padding:8px 10px;
+ padding:10px 14px;
  border:none;
  border-radius:12px;
  background:#1c1c1e;
@@ -83,14 +71,17 @@ button{
 
 button:active{
  transform:scale(0.9);
- opacity:0.7;
+}
+
+/* 활성 버튼 */
+.active{
+ background:#0a84ff;
 }
 
 input{
  padding:6px;
  border-radius:10px;
  border:none;
- margin-top:4px;
 }
 </style>
 </head>
@@ -110,13 +101,13 @@ input{
 <div id="time">25:00</div>
 </div>
 
-<!-- ✅ 버튼 한 줄 -->
+<!-- 🔥 토글 버튼 -->
 <div class="controls">
-  <button onclick="start()">▶</button>
-  <button onclick="pause()">⏸</button>
-  <button onclick="reset()">🔄</button>
-  <button onclick="nextPhase()">⏭</button>
+  <button id="toggleBtn" onclick="toggleTimer()">▶ 시작</button>
+  <button onclick="reset()">🔄 초기화</button>
 </div>
+
+<button onclick="nextPhase()">⏭ 다음</button>
 
 <h3>과목</h3>
 <div id="subjectList"></div>
@@ -146,39 +137,48 @@ let stats = JSON.parse(localStorage.getItem("stats")) || {};
 let current = localStorage.getItem("current");
 
 const progress = document.getElementById("progress");
+const toggleBtn = document.getElementById("toggleBtn");
 
-// 현재시간
+// 시간 표시
 setInterval(()=>{
  document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
 
 // 알림
-function requestNotification(){
- if(Notification.permission !== "granted"){
-  Notification.requestPermission();
+function notify(msg, cycleEnd=false){
+ if(Notification.permission==="granted"){
+  new Notification(msg,{silent:true});
  }
-}
-
-function vibrate(){
- if(navigator.vibrate){
+ if(cycleEnd && navigator.vibrate){
   navigator.vibrate([300,100,300]);
  }
 }
 
-function notify(msg, cycleEnd=false){
- if(Notification.permission === "granted"){
-  new Notification(msg,{ silent:true });
- }
- if(cycleEnd){
-  vibrate();
- }
-}
-
-// 상태
+// 상태 표시
 function renderStatus(){
  document.getElementById("status").innerText =
   (mode==="focus"?"🔥 집중":"😴 휴식") +
   ` | 🍅 ${sessions}회 | 🔁 ${Math.floor(sessions/4)}사이클`;
+}
+
+// 버튼 상태
+function updateButton(){
+ if(interval){
+  toggleBtn.innerText="⏸ 일시정지";
+  toggleBtn.classList.add("active");
+ }else{
+  toggleBtn.innerText="▶ 시작";
+  toggleBtn.classList.remove("active");
+ }
+}
+
+// 토글
+function toggleTimer(){
+ if(interval){
+  pause();
+ }else{
+  start();
+ }
 }
 
 // 과목
@@ -190,16 +190,12 @@ function renderSubjects(){
     ${s}
     <button onclick="selectSubject('${s}')">선택</button>
     <button onclick="editSubject('${s}')">수정</button>
-    <button onclick="deleteSubject('${s}')">삭제</button>
-    <br>
+    <button onclick="deleteSubject('${s}')">삭제</button><br>
   `;
  });
 }
 
-function selectSubject(s){
- current=s;
- localStorage.setItem("current",s);
-}
+function selectSubject(s){ current=s; localStorage.setItem("current",s); }
 
 function addSubject(){
  let v=document.getElementById("newSubject").value.trim();
@@ -211,48 +207,33 @@ function addSubject(){
  }
 
  current=v;
- save();
- renderSubjects();
- renderStats();
+ save(); renderSubjects(); renderStats();
 }
 
 function deleteSubject(s){
- subjects = subjects.filter(x=>x!==s);
+ subjects=subjects.filter(x=>x!==s);
  delete stats[s];
  if(current===s) current=null;
- save();
- renderSubjects();
- renderStats();
+ save(); renderSubjects(); renderStats();
 }
 
 function editSubject(s){
- let n = prompt("과목 수정", s);
+ let n=prompt("수정",s);
  if(!n) return;
-
- subjects = subjects.map(x=>x===s?n:x);
+ subjects=subjects.map(x=>x===s?n:x);
  stats[n]=stats[s];
  delete stats[s];
-
  if(current===s) current=n;
-
- save();
- renderSubjects();
- renderStats();
+ save(); renderSubjects(); renderStats();
 }
 
 function resetSubjects(){
- subjects=[];
- stats={};
- current=null;
- save();
- renderSubjects();
- renderStats();
+ subjects=[]; stats={}; current=null;
+ save(); renderSubjects(); renderStats();
 }
 
 function resetStats(){
- stats={};
- save();
- renderStats();
+ stats={}; save(); renderStats();
 }
 
 function renderStats(){
@@ -273,18 +254,14 @@ function save(){
 
 // 타이머
 function update(){
- let now = Date.now();
- let elapsed = Math.floor((now - startTimestamp)/1000);
- let timeLeft = remainingTime - elapsed;
+ let now=Date.now();
+ let elapsed=Math.floor((now-startTimestamp)/1000);
+ let timeLeft=remainingTime-elapsed;
+ let duration=(mode==="focus"?focusTime:breakTime);
 
- let duration = (mode==="focus"?focusTime:breakTime);
+ if(timeLeft<=0){ handleComplete(); return; }
 
- if(timeLeft <= 0){
-  handleComplete();
-  return;
- }
-
- progress.style.strokeDashoffset = 565*(1-timeLeft/duration);
+ progress.style.strokeDashoffset=565*(1-timeLeft/duration);
 
  if(mode==="focus" && current){
   stats[current]+=1;
@@ -302,23 +279,20 @@ function update(){
 // 완료
 function handleComplete(){
  clearInterval(interval);
+ interval=null;
 
  if(mode==="focus"){
   sessions++;
-
-  if(sessions % 4 === 0){
-    notify("🎉 1사이클 완료!", true);
-    renderStatus();
+  if(sessions%4===0){
+    notify("🎉 사이클 완료",true);
+    updateButton();
     return;
   }
-
   mode="break";
   remainingTime=breakTime;
-  notify("☕ 휴식 시작");
  }else{
   mode="focus";
   remainingTime=focusTime;
-  notify("💪 집중 시작");
  }
 
  start();
@@ -326,31 +300,31 @@ function handleComplete(){
 
 // 시작
 function start(){
- requestNotification();
-
  if(mode==="focus" && !current){
-  alert("과목 선택하세요");
+  alert("과목 선택");
   return;
  }
 
  if(interval) return;
 
- startTimestamp = Date.now();
+ startTimestamp=Date.now();
  interval=setInterval(update,1000);
 
+ updateButton();
  renderStatus();
 }
 
-// 일시정지
+// 정지
 function pause(){
  if(!interval) return;
 
  clearInterval(interval);
 
- let elapsed = Math.floor((Date.now()-startTimestamp)/1000);
- remainingTime -= elapsed;
+ let elapsed=Math.floor((Date.now()-startTimestamp)/1000);
+ remainingTime-=elapsed;
 
  interval=null;
+ updateButton();
 }
 
 // 초기화
@@ -365,12 +339,14 @@ function reset(){
  progress.style.strokeDashoffset=0;
  document.getElementById("time").innerText="25:00";
 
+ updateButton();
  renderStatus();
 }
 
 // 다음
 function nextPhase(){
  clearInterval(interval);
+ interval=null;
 
  if(mode==="focus"){
   sessions++;
@@ -381,7 +357,6 @@ function nextPhase(){
   remainingTime=focusTime;
  }
 
- interval=null;
  start();
 }
 
@@ -389,6 +364,7 @@ function nextPhase(){
 renderSubjects();
 renderStats();
 renderStatus();
+updateButton();
 </script>
 
 </body>
