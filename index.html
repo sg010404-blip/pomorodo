@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 
-<!-- ✅ 풀스크린 핵심 -->
+<!-- 풀스크린 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,12 +31,17 @@ body{
 }
 
 /* 상단 */
-#now{color:#aaa;margin-top:5px;}
-#status{color:#0a84ff;margin:5px;}
+#now{color:#aaa;margin-top:4px;}
+#status{color:#0a84ff;margin:4px;}
+
+/* 제목 */
+h2{margin:5px 0;}
+h3{margin:6px 0 4px;}
 
 /* 원형 */
 .circle{
- width:260px;height:260px;
+ width:220px;
+ height:220px;
  position:relative;
 }
 
@@ -56,18 +61,24 @@ circle{fill:none;stroke-width:10;}
  top:50%;
  width:100%;
  transform:translateY(-50%);
- font-size:42px;
+ font-size:36px;
 }
 
-/* 버튼 */
+/* 버튼 한 줄 */
+.controls{
+ display:flex;
+ justify-content:center;
+ gap:8px;
+ margin:8px 0;
+}
+
 button{
- margin:5px;
- padding:10px 14px;
+ padding:8px 10px;
  border:none;
  border-radius:12px;
  background:#1c1c1e;
  color:white;
- font-size:16px;
+ font-size:14px;
 }
 
 button:active{
@@ -76,10 +87,10 @@ button:active{
 }
 
 input{
- padding:8px;
+ padding:6px;
  border-radius:10px;
  border:none;
- margin-top:5px;
+ margin-top:4px;
 }
 </style>
 </head>
@@ -92,29 +103,32 @@ input{
 <h2>🍅 Pomodoro</h2>
 
 <div class="circle">
-<svg width="260" height="260">
-<circle class="bg" cx="130" cy="130" r="110"/>
-<circle id="progress" class="progress" cx="130" cy="130" r="110" stroke-dasharray="690"/>
+<svg width="220" height="220">
+<circle class="bg" cx="110" cy="110" r="90"/>
+<circle id="progress" class="progress" cx="110" cy="110" r="90" stroke-dasharray="565"/>
 </svg>
 <div id="time">25:00</div>
 </div>
 
-<button onclick="start()">▶ 시작</button>
-<button onclick="pause()">⏸ 일시정지</button>
-<button onclick="reset()">🔄 초기화</button>
-<button onclick="nextPhase()">⏭ 다음</button>
+<!-- ✅ 버튼 한 줄 -->
+<div class="controls">
+  <button onclick="start()">▶</button>
+  <button onclick="pause()">⏸</button>
+  <button onclick="reset()">🔄</button>
+  <button onclick="nextPhase()">⏭</button>
+</div>
 
 <h3>과목</h3>
 <div id="subjectList"></div>
 
 <input id="newSubject" placeholder="과목 입력">
 <button onclick="addSubject()">추가</button>
-<button onclick="resetSubjects()">🗑 과목 전체 삭제</button>
+<button onclick="resetSubjects()">🗑 전체삭제</button>
 
 <h3>📊 공부시간</h3>
 <div id="stats"></div>
 
-<button onclick="resetStats()">🔄 공부시간 초기화</button>
+<button onclick="resetStats()">🔄 초기화</button>
 
 <script>
 let focusTime = 1500;
@@ -138,21 +152,19 @@ setInterval(()=>{
  document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
 
-// 🔔 알림 권한
+// 알림
 function requestNotification(){
  if(Notification.permission !== "granted"){
   Notification.requestPermission();
  }
 }
 
-// 🔔 진동
 function vibrate(){
  if(navigator.vibrate){
   navigator.vibrate([300,100,300]);
  }
 }
 
-// 🔔 무음 알림
 function notify(msg, cycleEnd=false){
  if(Notification.permission === "granted"){
   new Notification(msg,{ silent:true });
@@ -169,7 +181,7 @@ function renderStatus(){
   ` | 🍅 ${sessions}회 | 🔁 ${Math.floor(sessions/4)}사이클`;
 }
 
-// 과목 UI
+// 과목
 function renderSubjects(){
  let div=document.getElementById("subjectList");
  div.innerHTML="";
@@ -204,7 +216,6 @@ function addSubject(){
  renderStats();
 }
 
-// 삭제
 function deleteSubject(s){
  subjects = subjects.filter(x=>x!==s);
  delete stats[s];
@@ -214,7 +225,6 @@ function deleteSubject(s){
  renderStats();
 }
 
-// 수정
 function editSubject(s){
  let n = prompt("과목 수정", s);
  if(!n) return;
@@ -230,7 +240,6 @@ function editSubject(s){
  renderStats();
 }
 
-// 전체 삭제
 function resetSubjects(){
  subjects=[];
  stats={};
@@ -240,14 +249,12 @@ function resetSubjects(){
  renderStats();
 }
 
-// 공부시간 초기화
 function resetStats(){
  stats={};
  save();
  renderStats();
 }
 
-// 표시
 function renderStats(){
  let div=document.getElementById("stats");
  div.innerHTML="";
@@ -258,7 +265,6 @@ function renderStats(){
  }
 }
 
-// 저장
 function save(){
  localStorage.setItem("subjects",JSON.stringify(subjects));
  localStorage.setItem("stats",JSON.stringify(stats));
@@ -278,10 +284,8 @@ function update(){
   return;
  }
 
- // 게이지
- progress.style.strokeDashoffset = 690*(1-timeLeft/duration);
+ progress.style.strokeDashoffset = 565*(1-timeLeft/duration);
 
- // 공부시간
  if(mode==="focus" && current){
   stats[current]+=1;
  }
