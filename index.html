@@ -95,16 +95,17 @@ input{
 let focusTime = 1500;
 let endTime = null;
 let interval = null;
+let lastUpdate = null;
 
 let subjects = JSON.parse(localStorage.getItem("subjects")) || [];
 let stats = JSON.parse(localStorage.getItem("stats")) || {};
 let current = localStorage.getItem("current");
 
-if(!subjects.includes(current)) current = null;
+if(!subjects.includes(current)) current=null;
 
 const progress = document.getElementById("progress");
 
-// 현재시간
+// 현재 시간 표시
 setInterval(()=>{
  document.getElementById("now").innerText=new Date().toLocaleTimeString();
 },1000);
@@ -218,15 +219,27 @@ function renderStats(){
  div.innerHTML="";
 
  for(let s in stats){
-  if(stats[s] > 0){
+  if(stats[s]>0){
     div.innerHTML+=`${s}: ${Math.floor(stats[s]/60)}분<br>`;
   }
  }
 }
 
-// 타이머 업데이트
+// 타이머
 function update(){
- let remaining = Math.max(0, Math.floor((endTime - Date.now())/1000));
+ let now = Date.now();
+
+ let remaining = Math.max(0, Math.floor((endTime - now)/1000));
+
+ // 🔥 핵심: 실제 흐른 시간만큼 누적
+ if(lastUpdate && current){
+  let diff = Math.floor((now - lastUpdate)/1000);
+  if(diff > 0){
+    stats[current] = (stats[current] || 0) + diff;
+  }
+ }
+
+ lastUpdate = now;
 
  let m=Math.floor(remaining/60);
  let s=remaining%60;
@@ -236,17 +249,14 @@ function update(){
 
  progress.style.strokeDashoffset = 690*(1-remaining/focusTime);
 
- if(current){
-   stats[current]=(stats[current]||0)+1;
- }
-
  renderStats();
 
  if(remaining <= 0){
-   clearInterval(interval);
-   interval=null;
-   save();
-   alert("🍅 완료!");
+  clearInterval(interval);
+  interval=null;
+  lastUpdate=null;
+  save();
+  alert("🍅 완료!");
  }
 }
 
@@ -259,6 +269,8 @@ function start(){
  if(interval) return;
 
  endTime = Date.now() + focusTime*1000;
+ lastUpdate = Date.now();
+
  interval = setInterval(update,1000);
 }
 
@@ -266,6 +278,7 @@ function start(){
 function pause(){
  clearInterval(interval);
  interval=null;
+ lastUpdate=null;
  save();
 }
 
@@ -273,6 +286,7 @@ function pause(){
 function reset(){
  clearInterval(interval);
  interval=null;
+ lastUpdate=null;
  endTime=null;
 
  document.getElementById("time").innerText="25:00";
